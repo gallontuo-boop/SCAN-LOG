@@ -6,13 +6,13 @@
 <meta name="theme-color" content="#16181C">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>出貨掃描存證</title>
+<title>出貨掃描存證 Shipment Scan Log</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root{
     --bg:#16181C; --panel:#1F2228; --panel2:#262A31; --line:#33383F;
     --ink:#EDEFF3; --sub:#9AA1AC; --amber:#FFB020; --amber-ink:#1A1200;
-    --ok:#35C46A; --dup:#FF9F2E; --bad:#FF5A5A; --info:#5AA9FF;
+    --ok:#35C46A; --dup:#FF9F2E; --bad:#FF5A5A; --mis:#E85AE0; --info:#5AA9FF;
     --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -24,29 +24,30 @@
   }
   .app{max-width:520px;margin:0 auto;min-height:100%;display:flex;flex-direction:column}
 
-  /* ── 頂部標頭：出貨標籤風格 ── */
   header{
     padding:14px 16px 12px;border-bottom:2px solid var(--amber);
-    display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
   }
-  header h1{font-size:19px;font-weight:700;letter-spacing:.06em}
-  header .tag{font-family:var(--mono);font-size:12px;color:var(--sub);letter-spacing:.08em}
+  header h1{font-size:19px;font-weight:700;letter-spacing:.05em}
+  header .tag{font-family:var(--mono);font-size:12px;color:var(--sub);letter-spacing:.06em}
+  .helpbtn{background:var(--panel);border:1px solid var(--line);color:var(--sub);
+    border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;flex-shrink:0}
 
   main{flex:1;padding:16px;display:flex;flex-direction:column;gap:14px}
   .hidden{display:none !important}
 
-  /* ── 表單 ── */
   .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
   .card h2{font-size:14px;color:var(--amber);letter-spacing:.1em;margin-bottom:12px;font-weight:700}
   .field{margin-bottom:13px}
   .field label{display:block;font-size:15px;color:var(--sub);margin-bottom:5px}
   .field label b{color:var(--bad);font-weight:400}
   .field input,.field textarea{
-    width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;
-    color:var(--ink);font-size:17px;padding:13px;outline:none;
+    width:100%;background:var(--pan2, var(--panel2));border:1px solid var(--line);border-radius:8px;
+    color:var(--ink);font-size:17px;padding:13px;outline:none;background:var(--panel2);
   }
   .field input:focus,.field textarea:focus{border-color:var(--amber)}
   .field textarea{resize:vertical;min-height:64px}
+  .field .hint{font-size:13px;color:var(--sub);margin-top:4px;line-height:1.4}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
   .btn{
@@ -61,7 +62,6 @@
   .btn[disabled]{opacity:.45;pointer-events:none}
   .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
-  /* ── 掃描頁 ── */
   .sess{
     background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;
     font-size:15px;display:flex;flex-wrap:wrap;gap:4px 14px;
@@ -73,8 +73,7 @@
     max-height:52vh;display:flex;align-items:center;justify-content:center}
   #reader video{border-radius:10px;width:100% !important}
 
-  /* 相機控制（縮放／手電筒，裝置支援才顯示） */
-  .camctrl{display:flex;gap:8px;justify-content:center;margin-top:8px}
+  .camctrl{display:flex;gap:8px;justify-content:center;margin-top:8px;flex-wrap:wrap}
   .camctrl button{
     background:var(--panel);border:1px solid var(--line);color:var(--ink);
     border-radius:8px;font-size:14px;padding:8px 14px;min-width:64px;cursor:pointer;
@@ -82,21 +81,24 @@
   .camctrl button:active{background:var(--panel2)}
   .camctrl button.on{border-color:var(--amber);color:var(--amber)}
 
-  /* 固定在畫面底部的操作列：不用捲動就能按 */
+  .guninput{margin-top:8px}
+  .guninput input{
+    width:100%;background:#101216;border:2px solid var(--info);border-radius:8px;
+    color:var(--info);font-family:var(--mono);font-size:17px;padding:12px;outline:none;text-align:center;
+  }
+
   .actionbar{
     position:fixed;left:50%;transform:translateX(-50%);bottom:0;z-index:30;
     width:100%;max-width:520px;padding:10px 16px calc(12px + env(safe-area-inset-bottom));
     background:linear-gradient(to top, rgba(22,24,28,.97) 62%, transparent);
   }
-  #viewScan{padding-bottom:118px}
+  #viewScan{padding-bottom:130px}
 
   .abort{
     background:transparent;border:1px solid var(--line);color:var(--sub);
-    border-radius:7px;font-size:12px;padding:5px 10px;cursor:pointer;flex-shrink:0;
+    border-radius:7px;font-size:12.5px;padding:5px 10px;cursor:pointer;flex-shrink:0;
   }
-  .flash.f-info{background:var(--panel);color:var(--info);border-color:var(--info)}
 
-  /* 簽名元素：掃描燈條 */
   .flash{
     min-height:56px;border-radius:10px;background:var(--panel);border:1px solid var(--line);
     display:flex;align-items:center;justify-content:center;gap:10px;
@@ -106,12 +108,14 @@
   .flash.f-ok{background:var(--ok);color:#03210F;border-color:var(--ok)}
   .flash.f-dup{background:var(--dup);color:#2A1600;border-color:var(--dup)}
   .flash.f-bad{background:var(--bad);color:#2B0505;border-color:var(--bad)}
+  .flash.f-mis{background:var(--mis);color:#2B0329;border-color:var(--mis)}
+  .flash.f-info{background:var(--panel);color:var(--info);border-color:var(--info)}
 
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 4px;text-align:center}
-  .stat .n{font-family:var(--mono);font-size:26px;font-weight:700;line-height:1.15}
-  .stat .t{font-size:12px;color:var(--sub);line-height:1.3}
-  .n-ok{color:var(--ok)} .n-dup{color:var(--dup)} .n-bad{color:var(--bad)} .n-exp{color:var(--info)}
+  .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 2px;text-align:center}
+  .stat .n{font-family:var(--mono);font-size:23px;font-weight:700;line-height:1.15}
+  .stat .t{font-size:11.5px;color:var(--sub);line-height:1.3}
+  .n-ok{color:var(--ok)} .n-dup{color:var(--dup)} .n-bad{color:var(--bad)} .n-mis{color:var(--mis)} .n-exp{color:var(--info)}
 
   .progress{height:6px;border-radius:3px;background:var(--panel2);overflow:hidden}
   .progress i{display:block;height:100%;width:0%;background:var(--ok);transition:width .25s}
@@ -125,47 +129,56 @@
   .rec.r-ok{border-left-color:var(--ok)}
   .rec.r-dup{border-left-color:var(--dup)}
   .rec.r-bad{border-left-color:var(--bad)}
+  .rec.r-mis{border-left-color:var(--mis)}
   .rec .idx{font-family:var(--mono);color:var(--sub);font-size:13px;min-width:28px}
   .rec .code{flex:1;font-family:var(--mono);font-size:14.5px;word-break:break-all;line-height:1.35}
   .rec .meta{text-align:right;flex-shrink:0}
   .rec .badge{font-size:13px;font-weight:700;letter-spacing:.04em}
-  .rec.r-ok .badge{color:var(--ok)} .rec.r-dup .badge{color:var(--dup)} .rec.r-bad .badge{color:var(--bad)}
+  .rec.r-ok .badge{color:var(--ok)} .rec.r-dup .badge{color:var(--dup)}
+  .rec.r-bad .badge{color:var(--bad)} .rec.r-mis .badge{color:var(--mis)}
   .rec .time{font-family:var(--mono);font-size:12.5px;color:var(--sub)}
   .rec .up{font-size:12px}
   .up-sent{color:var(--ok)} .up-pending{color:var(--sub)} .up-error{color:var(--bad)}
+  .note-inline{font-size:12.5px;color:var(--sub);margin-top:2px;word-break:break-all}
 
-  .note-inline{font-size:12px;color:var(--sub);margin-top:2px;word-break:break-all}
-
-  /* ── 蓋板視窗 ── */
   .overlay{
-    position:fixed;inset:0;background:rgba(10,11,13,.82);z-index:50;
+    position:fixed;inset:0;background:rgba(10,11,13,.85);z-index:50;
     display:flex;align-items:center;justify-content:center;padding:20px;
   }
   .modal{background:var(--panel);border:1px solid var(--line);border-radius:12px;
     padding:18px;width:100%;max-width:440px;max-height:88vh;overflow:auto}
-  .modal h3{font-size:16px;margin-bottom:10px}
-  .modal p{font-size:14px;color:var(--sub);margin-bottom:12px}
+  .modal h3{font-size:17px;margin-bottom:10px}
+  .modal p{font-size:15px;color:var(--sub);margin-bottom:12px}
   .modal img{width:100%;border-radius:8px;border:1px solid var(--line);margin-bottom:12px}
-  .modal .btnrow{margin-top:6px}
-
-  /* ── 完成頁 ── */
-  .done-hero{
-    background:var(--panel);border:1px solid var(--ok);border-radius:12px;padding:22px 18px;text-align:center;
+  .missbox{
+    background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+    padding:10px;max-height:150px;overflow:auto;font-family:var(--mono);
+    font-size:13px;line-height:1.6;word-break:break-all;margin-bottom:10px;
   }
-  .done-hero .big{font-size:20px;font-weight:700;color:var(--ok);margin-bottom:4px}
-  .done-hero .sub{font-size:13px;color:var(--sub)}
-  .kv{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:14px}
+
+  .done-hero{background:var(--panel);border:1px solid var(--ok);border-radius:12px;padding:22px 18px;text-align:center}
+  .done-hero .big{font-size:21px;font-weight:700;color:var(--ok);margin-bottom:4px}
+  .done-hero .sub{font-size:14px;color:var(--sub)}
+  .kv{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:15px}
   .kv:last-child{border-bottom:none}
   .kv span{color:var(--sub);flex-shrink:0} .kv b{font-weight:600;text-align:right;word-break:break-all}
   .hashbox{
-    font-family:var(--mono);font-size:11.5px;word-break:break-all;line-height:1.5;
+    font-family:var(--mono);font-size:12px;word-break:break-all;line-height:1.5;
     background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;color:var(--amber);
   }
   .banner{
-    border-radius:10px;padding:10px 14px;font-size:13px;line-height:1.45;
+    border-radius:10px;padding:10px 14px;font-size:14px;line-height:1.45;
     background:#2B2410;border:1px solid #5A4A1A;color:#FFD37A;
   }
   .banner.red{background:#2E1618;border-color:#5A2A2E;color:#FFB3B3}
+
+  .steps{display:flex;flex-direction:column;gap:14px;margin:14px 0}
+  .step{display:flex;gap:12px;align-items:flex-start}
+  .step .num{background:var(--amber);color:var(--amber-ink);font-weight:700;border-radius:50%;
+    width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px}
+  .step .txt{font-size:15px;line-height:1.5}
+  .step .txt small{color:var(--sub);display:block;font-size:13px}
+
   footer{padding:10px 16px 18px;text-align:center;font-size:11px;color:var(--sub);font-family:var(--mono);letter-spacing:.06em}
 </style>
 </head>
@@ -173,13 +186,15 @@
 <div class="app">
   <header>
     <h1>出貨掃描存證</h1>
-    <div class="tag" id="clock">--:--:--</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="tag" id="clock">--:--:--</div>
+      <button class="helpbtn" id="btnHelp" title="使用說明">?</button>
+    </div>
   </header>
 
   <main>
-    <!-- 未設定後端提示 -->
     <div class="banner hidden" id="demoBanner">
-      <b>示範模式</b>：尚未設定後端網址（ENDPOINT_URL），掃描紀錄只會留在此頁面、不會上傳與寄信。請依設定說明部署 Google Apps Script 後填入網址。
+      <b>示範模式 Demo</b>：尚未設定後端網址（ENDPOINT_URL），掃描紀錄只會留在此頁面、不會上傳與寄信。
     </div>
 
     <!-- ═══ 畫面一：出貨資料 ═══ -->
@@ -193,15 +208,31 @@
         </div>
         <div class="grid2">
           <div class="field"><label>GT#</label><input id="fGt" placeholder="例 e.g. GT123456"></div>
-          <div class="field"><label>預計箱數 Carton Qty <b>＊</b></label><input id="fQty" type="number" inputmode="numeric" min="1" placeholder="例 e.g. 20"></div>
+          <div class="field"><label>預計箱數 Carton Qty</label><input id="fQty" type="number" inputmode="numeric" min="1" placeholder="例 e.g. 20"></div>
         </div>
         <div class="field"><label>掃描人員 Operator <b>＊</b></label><input id="fOperator" placeholder="姓名或工號 Name / ID"></div>
         <div class="field"><label>備註 Remarks</label><textarea id="fNote" placeholder="有需要註明的事項可填寫（選填）Optional notes"></textarea></div>
       </div>
+
+      <div style="height:12px"></div>
+      <div class="card">
+        <h2>箱號清單比對（選填）Code List Check (optional)</h2>
+        <div class="field">
+          <textarea id="fList" style="min-height:96px;font-family:var(--mono);font-size:15px"
+            placeholder="從 Excel 複製整欄箱號，貼在這裡（一行一個）&#10;Paste the code column from Excel here (one per line)"></textarea>
+          <div class="hint">
+            貼上後掃描時會自動比對：在清單內＝成功、不在清單內＝<b style="color:var(--mis)">不符</b>、掃完會列出漏掃的箱號。<br>
+            每箱同一個號碼也適用：同號碼出現幾行，就代表要掃幾次。<br>
+            If pasted, each scan is checked against the list. Same code repeated N lines = must be scanned N times.
+          </div>
+        </div>
+        <div id="listStat" style="font-size:14px;color:var(--info)"></div>
+      </div>
+
       <div style="height:12px"></div>
       <button class="btn btn-amber" id="btnStart">開始掃描 Start Scanning</button>
       <p style="font-size:13.5px;color:var(--sub);margin-top:10px;text-align:center">
-        按下後將啟動相機並鎖定上方資料，每一筆掃描都會即時上傳並記錄時間（年-月-日 時:分:秒）。<br>
+        按下後將啟動相機並鎖定上方資料，每一筆掃描都會即時上傳並記錄時間。<br>
         Camera starts and the info above is locked. Every scan is uploaded instantly with a timestamp.
       </p>
     </section>
@@ -210,23 +241,29 @@
     <section id="viewScan" class="hidden">
       <div style="display:flex;gap:10px;align-items:flex-start">
         <div class="sess" id="sessInfo" style="flex:1"></div>
-        <button class="abort" id="btnAbort">✕ 取消場次 Cancel</button>
+        <button class="abort" id="btnAbort">✕ 取消<br>Cancel</button>
       </div>
       <div style="height:10px"></div>
       <div id="reader"></div>
-      <div class="camctrl hidden" id="camCtrl">
-        <button id="zoomOut">縮小 −</button>
-        <button id="zoomIn">放大 ＋</button>
+      <div class="camctrl" id="camCtrl">
+        <button id="zoomOut" class="hidden">縮小 −</button>
+        <button id="zoomIn" class="hidden">放大 ＋</button>
         <button id="torchBtn" class="hidden">手電筒 Torch</button>
+        <button id="gunBtn">掃描槍 Gun</button>
+        <button id="voiceBtn">語音 Voice</button>
+      </div>
+      <div class="guninput hidden" id="gunWrap">
+        <input id="gunInput" placeholder="掃描槍輸入區 Scanner gun input" autocomplete="off">
       </div>
       <div style="height:10px"></div>
       <div class="flash" id="flash">等待掃描 Waiting…</div>
       <div style="height:10px"></div>
       <div class="stats">
-        <div class="stat"><div class="n n-ok" id="cOk">0</div><div class="t">成功<br>Success</div></div>
-        <div class="stat"><div class="n n-dup" id="cDup">0</div><div class="t">重複<br>Duplicate</div></div>
-        <div class="stat"><div class="n n-bad" id="cBad">0</div><div class="t">失敗<br>Failed</div></div>
-        <div class="stat"><div class="n n-exp" id="cExp">0</div><div class="t">預計箱數<br>Expected</div></div>
+        <div class="stat"><div class="n n-ok" id="cOk">0</div><div class="t">成功<br>OK</div></div>
+        <div class="stat"><div class="n n-dup" id="cDup">0</div><div class="t">重複<br>Dup</div></div>
+        <div class="stat"><div class="n n-mis" id="cMis">0</div><div class="t">不符<br>NotOnList</div></div>
+        <div class="stat"><div class="n n-bad" id="cBad">0</div><div class="t">失敗<br>Fail</div></div>
+        <div class="stat"><div class="n n-exp" id="cExp">0</div><div class="t">預計<br>Expect</div></div>
       </div>
       <div style="height:8px"></div>
       <div class="progress" id="prog"><i></i></div>
@@ -243,25 +280,39 @@
     <!-- ═══ 畫面三：結案完成 ═══ -->
     <section id="viewDone" class="hidden">
       <div class="done-hero">
-        <div class="big" id="doneTitle">紀錄已寄出</div>
+        <div class="big" id="doneTitle">紀錄已寄出 Report Sent</div>
         <div class="sub" id="doneSub"></div>
       </div>
       <div style="height:12px"></div>
       <div class="card" id="doneSummary"></div>
       <div style="height:12px"></div>
       <div class="card">
-        <h2>紀錄數位指紋（SHA-256）</h2>
+        <h2>紀錄數位指紋 SHA-256 Fingerprint</h2>
         <div class="hashbox" id="doneHash">—</div>
-        <p style="font-size:12px;color:var(--sub);margin-top:8px">
-          此指紋已包含於寄出的信件中。日後匯出的 Excel／PDF 只要重算指紋比對相符，即可證明內容未被修改。
+        <p style="font-size:13px;color:var(--sub);margin-top:8px">
+          此指紋已包含於寄出的信件中，可證明日後匯出的檔案內容未被修改。<br>
+          This fingerprint is included in the sent email to prove records are unaltered.
         </p>
       </div>
       <div style="height:12px"></div>
-      <button class="btn btn-amber" id="btnNew">開始新場次</button>
+      <button class="btn btn-amber" id="btnNew">開始新場次 New Session</button>
     </section>
   </main>
 
-  <footer>SHIPMENT SCAN LOG · 每筆紀錄含伺服器時間戳</footer>
+  <footer>SHIPMENT SCAN LOG · 每筆紀錄含伺服器時間戳 SERVER-TIMESTAMPED</footer>
+</div>
+
+<!-- 新手引導 -->
+<div class="overlay hidden" id="guideOverlay">
+  <div class="modal">
+    <h3>三步驟完成出貨存證 3 Easy Steps</h3>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><div class="txt">填寫出貨資料<small>Fill in shipment info. 品牌、箱數、人員必填；可貼上客戶的箱號清單自動比對。</small></div></div>
+      <div class="step"><div class="num">2</div><div class="txt">逐箱掃描<small>Scan each carton. 綠燈嗶聲＝成功；掃不到就按「標記掃描失敗」拍照存證。也可接藍牙掃描槍。</small></div></div>
+      <div class="step"><div class="num">3</div><div class="txt">完成並寄出<small>Finish &amp; send. 報告自動寄到指定信箱，含時間戳與數位指紋，寄出後不可修改。</small></div></div>
+    </div>
+    <button class="btn btn-amber" id="guideClose">開始使用 Get Started</button>
+  </div>
 </div>
 
 <!-- 標記失敗視窗 -->
@@ -269,7 +320,7 @@
   <div class="modal">
     <h3>標記掃描失敗 Mark as Failed</h3>
     <p>已擷取目前鏡頭畫面作為存證照片，請確認照片有拍到問題條碼。<br>
-    A photo of the current camera view has been captured as evidence. Make sure the problem barcode is visible.</p>
+    Confirm the problem barcode is visible in the captured photo.</p>
     <img id="failPhoto" alt="失敗條碼照片">
     <div class="field"><label>失敗說明 Reason（選填 optional）</label><input id="failNote" placeholder="例：條碼印刷模糊 e.g. blurry print"></div>
     <div class="btnrow">
@@ -284,43 +335,74 @@
   <div class="modal">
     <h3>確認結案並寄出？ Finish &amp; send report?</h3>
     <p id="finishSummary"></p>
+    <div class="hidden" id="missWrap">
+      <p style="color:var(--bad);font-weight:700;margin-bottom:6px" id="missTitle"></p>
+      <div class="missbox" id="missList"></div>
+    </div>
     <div class="banner red hidden" id="finishWarn"></div>
     <div style="height:10px"></div>
     <div class="btnrow">
       <button class="btn btn-outline" id="finishCancel">返回 Back</button>
       <button class="btn btn-ok" id="finishConfirm">確認寄出 Send</button>
     </div>
-    <p style="margin-top:10px;font-size:13px">寄出後即結案，紀錄不可再修改或增減。<br>Once sent, the session is locked and records cannot be changed.</p>
+    <p style="margin-top:10px;font-size:13px">寄出後即結案，紀錄不可再修改或增減。<br>Once sent, the session is locked.</p>
   </div>
 </div>
 
 <script>
 /* ════════════════════════════════════════════════════════════
    設定：部署 Google Apps Script 後，把網址貼在下面引號內。
-   （日後改用 Firebase 也只需要換這一行網址）
    ════════════════════════════════════════════════════════════ */
-const ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbzHYwWgAWcB02WNTzExMjgvUTDZeqJhm-8OmDEWIzr1Po3RyFAFmIo8arPnsBS59Dpx/exec";
+const ENDPOINT_URL = "";
 
 /* ── 全域狀態 ── */
-let session = null;          // {id, brand, style, gt, qty, operator, note, startAt}
-let records = [];            // {seq, code, result, deviceTime, note, photo, upload}
+let session = null;
+let records = [];
 let scanner = null;
 let lastCode = "", lastCodeAt = 0;
 let scanningPaused = false;
+let lastActivity = 0;
+let zoomState = null, torchOn = false;
+let expected = null, listTotal = 0;      // 清單比對：code → 應掃次數
+let matched = {};                         // 清單比對：code → 已掃次數
+let gunMode = false, voiceOn = true;
 
 const $ = id => document.getElementById(id);
 const pad = n => String(n).padStart(2,"0");
 function fmt(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+" "+pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds()); }
-function fmtT(d){ return pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds()); }
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
-/* 時鐘 */
+/* 本機儲存（部分環境不支援，故全部包 try） */
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+
 setInterval(()=>{ $("clock").textContent = fmt(new Date()); }, 1000);
 
-/* 示範模式提示 */
 const DEMO = !ENDPOINT_URL;
 if (DEMO) $("demoBanner").classList.remove("hidden");
 
-/* ── 提示音與震動 ── */
+/* ── 新手引導 ── */
+if (!lsGet("sg_guided")) $("guideOverlay").classList.remove("hidden");
+$("guideClose").addEventListener("click", ()=>{ lsSet("sg_guided","1"); $("guideOverlay").classList.add("hidden"); });
+$("btnHelp").addEventListener("click", ()=>$("guideOverlay").classList.remove("hidden"));
+
+/* ── 記住常用資料 ── */
+["fBrand","fStyle","fPo","fGt","fOperator"].forEach(id=>{
+  const v = lsGet("sg_"+id); if (v) $(id).value = v;
+});
+
+/* ── 清單解析 ── */
+$("fList").addEventListener("input", ()=>{
+  const codes = parseList();
+  $("listStat").textContent = codes.length
+    ? "清單共 " + codes.length + " 箱（不同號碼 " + new Set(codes).size + " 個）List: " + codes.length + " cartons"
+    : "";
+});
+function parseList(){
+  return $("fList").value.split(/\r?\n/).map(s=>s.trim()).filter(s=>s.length>0);
+}
+
+/* ── 提示音、震動、語音 ── */
 let audioCtx = null;
 function beep(freq, ms){
   try{
@@ -332,25 +414,43 @@ function beep(freq, ms){
   }catch(e){}
 }
 const vib = p => { try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} };
+function say(text, lang){
+  if (!voiceOn) return;
+  try{
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang || "zh-TW"; u.rate = 1.15;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }catch(e){}
+}
 
 /* ── 燈條 ── */
 let flashTimer = null;
 function flash(kind, html){
   const f = $("flash");
-  f.className = "flash " + (kind==="ok"?"f-ok":kind==="dup"?"f-dup":"f-bad");
+  f.className = "flash f-" + kind;
   f.innerHTML = html;
   clearTimeout(flashTimer);
-  flashTimer = setTimeout(()=>{ f.className="flash"; f.innerHTML="等待掃描 Waiting…"; }, 1600);
+  flashTimer = setTimeout(()=>{ f.className="flash"; f.innerHTML="等待掃描 Waiting…"; }, 1800);
 }
 
-/* ════════ 畫面一 → 開始掃描 ════════ */
+/* ════════ 開始掃描 ════════ */
 $("btnStart").addEventListener("click", async ()=>{
   const brand = $("fBrand").value.trim();
-  const qty = parseInt($("fQty").value, 10);
   const operator = $("fOperator").value.trim();
   if(!brand){ alert("請填寫品牌 / Please enter Brand"); return; }
-  if(!qty || qty < 1){ alert("請填寫預計箱數 / Please enter Carton Qty"); return; }
   if(!operator){ alert("請填寫掃描人員 / Please enter Operator"); return; }
+
+  const codes = parseList();
+  let qty = parseInt($("fQty").value, 10);
+  if (codes.length){
+    expected = {}; matched = {};
+    codes.forEach(c=>{ expected[c] = (expected[c]||0) + 1; });
+    listTotal = codes.length;
+    qty = codes.length;   // 有清單時，預計箱數以清單為準
+  } else {
+    expected = null; listTotal = 0;
+    if(!qty || qty < 1){ alert("請填寫預計箱數，或貼上箱號清單\nEnter Carton Qty or paste a code list"); return; }
+  }
 
   const now = new Date();
   session = {
@@ -360,18 +460,25 @@ $("btnStart").addEventListener("click", async ()=>{
     po: $("fPo").value.trim(),
     gt: $("fGt").value.trim(),
     note: $("fNote").value.trim(),
+    hasList: !!expected, listTotal,
     startAt: fmt(now)
   };
   records = [];
 
+  ["fBrand","fStyle","fPo","fGt","fOperator"].forEach(id=>lsSet("sg_"+id, $(id).value.trim()));
+
   $("sessInfo").innerHTML =
-    '<div class="sid">場次 Session '+session.id+'　開始 Start '+session.startAt+'</div>'+
+    '<div class="sid">場次 '+session.id+'　開始 '+session.startAt+'</div>'+
     '<div><span>品牌 </span><b>'+esc(session.brand)+'</b></div>'+
     (session.style?'<div><span>Style </span><b>'+esc(session.style)+'</b></div>':'')+
     (session.po?'<div><span>PO# </span><b>'+esc(session.po)+'</b></div>':'')+
     (session.gt?'<div><span>GT# </span><b>'+esc(session.gt)+'</b></div>':'')+
-    '<div><span>人員 </span><b>'+esc(session.operator)+'</b></div>';
+    '<div><span>人員 </span><b>'+esc(session.operator)+'</b></div>'+
+    (session.hasList?'<div><span>清單比對 </span><b style="color:var(--info)">已啟用 ON</b></div>':'');
   $("cExp").textContent = session.qty;
+
+  voiceOn = lsGet("sg_voice") !== "0";
+  $("voiceBtn").classList.toggle("on", voiceOn);
 
   $("viewForm").classList.add("hidden");
   $("viewScan").classList.remove("hidden");
@@ -379,12 +486,7 @@ $("btnStart").addEventListener("click", async ()=>{
   await startCamera();
 });
 
-function esc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
-
-/* ════════ 相機與解碼 ════════ */
-let lastActivity = 0;
-let zoomState = null, torchOn = false;
-
+/* ════════ 相機 ════════ */
 async function startCamera(){
   const formats = [
     Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.CODE_128,
@@ -395,7 +497,7 @@ async function startCamera(){
   ];
   scanner = new Html5Qrcode("reader", {
     formatsToSupport: formats,
-    experimentalFeatures: { useBarCodeDetectorIfSupported: true },  // 有原生解碼器的手機解碼更快更準
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true },
     verbose: false
   });
   try{
@@ -403,32 +505,28 @@ async function startCamera(){
       { facingMode: "environment" },
       {
         fps: 12,
-        /* 不設 qrbox：整個相機畫面都是掃描區，條碼橫放、直放、方形 QR 皆可，不用對準框 */
-        videoConstraints: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }  // 要求較高解析度，小條碼較易讀
+        /* 不設 qrbox：整個畫面都是掃描區，橫、直、方形條碼皆可 */
+        videoConstraints: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
       },
-      onDecode, ()=>{}
+      text=>processCode(text), ()=>{}
     );
     lastActivity = Date.now();
     setupCamCtrls();
   }catch(err){
-    flash("bad","無法啟動相機");
-    alert("無法啟動相機：" + err + "\n\n請確認已允許相機權限，且此頁面是以 https 開啟。");
+    flash("bad","無法啟動相機 Camera failed");
+    alert("無法啟動相機：" + err + "\n\n請確認已允許相機權限，且此頁面是以 https 開啟。\nCheck camera permission and https.");
   }
 }
 
-/* 縮放與手電筒（僅在裝置支援時顯示） */
 async function setupCamCtrls(){
   try{
     const caps = scanner.getRunningTrackCapabilities();
-    let hasAny = false;
     if (caps && caps.zoom){
       zoomState = { min: caps.zoom.min || 1, max: caps.zoom.max || 4,
                     step: caps.zoom.step || 0.5, val: caps.zoom.min || 1 };
-      hasAny = true;
+      $("zoomIn").classList.remove("hidden"); $("zoomOut").classList.remove("hidden");
     }
-    if (caps && caps.torch){ $("torchBtn").classList.remove("hidden"); hasAny = true; }
-    if (hasAny) $("camCtrl").classList.remove("hidden");
-    if (!zoomState){ $("zoomIn").style.display = "none"; $("zoomOut").style.display = "none"; }
+    if (caps && caps.torch) $("torchBtn").classList.remove("hidden");
   }catch(e){}
 }
 async function applyZoom(dir){
@@ -444,7 +542,34 @@ $("torchBtn").addEventListener("click", async ()=>{
   $("torchBtn").classList.toggle("on", torchOn);
 });
 
-/* 超過 12 秒掃不到 → 提示可標記失敗 */
+/* ── 掃描槍模式：藍牙掃描槍如同鍵盤輸入，掃完自動送出 ── */
+$("gunBtn").addEventListener("click", ()=>{
+  gunMode = !gunMode;
+  $("gunBtn").classList.toggle("on", gunMode);
+  $("gunWrap").classList.toggle("hidden", !gunMode);
+  if (gunMode) $("gunInput").focus();
+});
+$("gunInput").addEventListener("keydown", (e)=>{
+  if (e.key === "Enter"){
+    e.preventDefault();
+    const v = $("gunInput").value.trim();
+    $("gunInput").value = "";
+    if (v) processCode(v);
+  }
+});
+$("gunInput").addEventListener("blur", ()=>{
+  if (gunMode && !scanningPaused) setTimeout(()=>{ if(gunMode && !scanningPaused) $("gunInput").focus(); }, 150);
+});
+
+/* ── 語音開關 ── */
+$("voiceBtn").addEventListener("click", ()=>{
+  voiceOn = !voiceOn;
+  $("voiceBtn").classList.toggle("on", voiceOn);
+  lsSet("sg_voice", voiceOn ? "1" : "0");
+  if (voiceOn) say("語音開啟");
+});
+
+/* 超過 12 秒掃不到 → 提示 */
 setInterval(()=>{
   if (!scanner || scanningPaused) return;
   const f = $("flash");
@@ -454,23 +579,28 @@ setInterval(()=>{
   }
 }, 3000);
 
-function onDecode(text){
+/* ════════ 判定掃描結果（相機與掃描槍共用） ════════ */
+function processCode(text){
   if (scanningPaused) return;
   const now = Date.now();
-  if (text === lastCode && now - lastCodeAt < 3000) return;  // 3 秒冷卻，避免同一箱連續觸發
-  lastCode = text; lastCodeAt = now;
-  lastActivity = now;
+  if (text === lastCode && now - lastCodeAt < 3000) return;
+  lastCode = text; lastCodeAt = now; lastActivity = now;
 
-  const isDup = records.some(r => r.code === text && r.result !== "失敗");
-  if (isDup){
-    addRecord(text, "重複", "");
-    beep(320,180); setTimeout(()=>beep(320,180),220); vib([80,60,80]);
-    flash("dup","重複 DUP ▸ " + esc(text.slice(0,24)));
+  let result;
+  if (expected){
+    if (expected[text] !== undefined){
+      const have = matched[text] || 0;
+      if (have < expected[text]){ matched[text] = have + 1; result = "成功"; }
+      else result = "重複";
+    } else result = "不符";
   } else {
-    addRecord(text, "成功", "");
-    beep(1180,120); vib(60);
-    flash("ok","成功 OK ▸ " + esc(text.slice(0,24)));
+    result = records.some(r => r.code === text && r.result === "成功") ? "重複" : "成功";
   }
+
+  addRecord(text, result, "");
+  if (result === "成功"){ beep(1180,120); vib(60); say("OK","en-US"); flash("ok","成功 OK ▸ " + esc(text.slice(0,24))); }
+  else if (result === "重複"){ beep(320,180); setTimeout(()=>beep(320,180),220); vib([80,60,80]); say("重複"); flash("dup","重複 DUP ▸ " + esc(text.slice(0,24))); }
+  else { beep(180,350); vib([150,80,150]); say("不符，請檢查"); flash("mis","不符！不在清單內 NOT ON LIST<br>" + esc(text.slice(0,24))); }
 }
 
 /* ════════ 紀錄與即時上傳 ════════ */
@@ -489,8 +619,9 @@ function addRecord(code, result, note, photo){
 }
 
 function renderRecord(rec){
+  const cls = rec.result==="成功"?"r-ok":rec.result==="重複"?"r-dup":rec.result==="不符"?"r-mis":"r-bad";
   const div = document.createElement("div");
-  div.className = "rec " + (rec.result==="成功"?"r-ok":rec.result==="重複"?"r-dup":"r-bad");
+  div.className = "rec " + cls;
   div.id = "rec-" + rec.seq;
   div.innerHTML =
     '<div class="idx">'+String(rec.seq).padStart(2,"0")+'</div>'+
@@ -507,19 +638,27 @@ function setUpIcon(rec){
   const el = $("up-" + rec.seq); if(!el) return;
   if (rec.upload==="sent"){ el.className="up up-sent"; el.textContent="已上傳"; }
   else if (rec.upload==="pending"){ el.className="up up-pending"; el.textContent="上傳中…"; }
-  else if (rec.upload==="error"){ el.className="up up-error"; el.textContent="待重傳"; }
+  else if (rec.upload==="error"){ el.className="up up-error"; el.textContent="網路不穩，將自動補傳"; }
   else { el.className="up up-pending"; el.textContent="示範"; }
 }
 
+function counts(){
+  return {
+    ok:  records.filter(r=>r.result==="成功").length,
+    dup: records.filter(r=>r.result==="重複").length,
+    mis: records.filter(r=>r.result==="不符").length,
+    bad: records.filter(r=>r.result==="失敗").length
+  };
+}
 function refreshStats(){
-  const ok  = records.filter(r=>r.result==="成功").length;
-  const dup = records.filter(r=>r.result==="重複").length;
-  const bad = records.filter(r=>r.result==="失敗").length;
-  $("cOk").textContent = ok; $("cDup").textContent = dup; $("cBad").textContent = bad;
-  const pct = Math.min(100, Math.round(ok / session.qty * 100));
+  const c = counts();
+  $("cOk").textContent = c.ok; $("cDup").textContent = c.dup;
+  $("cMis").textContent = c.mis; $("cBad").textContent = c.bad;
+  const total = expected ? listTotal : session.qty;
+  const pct = Math.min(100, Math.round(c.ok / total * 100));
   const prog = $("prog");
   prog.querySelector("i").style.width = pct + "%";
-  prog.classList.toggle("over", ok > session.qty);
+  prog.classList.toggle("over", c.ok > total);
 }
 
 async function apiPost(payload){
@@ -544,86 +683,109 @@ async function uploadScan(rec){
   setUpIcon(rec);
 }
 
-/* 失敗自動重傳（每 6 秒） */
 setInterval(()=>{
   if (DEMO || !session) return;
   records.filter(r=>r.upload==="error").forEach(r=>{ r.upload="pending"; setUpIcon(r); uploadScan(r); });
 }, 6000);
 
-/* ════════ 標記掃描失敗（含拍照存證） ════════ */
+/* ════════ 標記掃描失敗（拍照存證） ════════ */
 $("btnFail").addEventListener("click", ()=>{
   const video = document.querySelector("#reader video");
-  if (!video){ alert("相機尚未啟動"); return; }
+  if (!video){ alert("相機尚未啟動 Camera not ready"); return; }
   const canvas = document.createElement("canvas");
   const scale = Math.min(1, 900 / video.videoWidth);
   canvas.width = Math.floor(video.videoWidth * scale);
   canvas.height = Math.floor(video.videoHeight * scale);
   canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-  const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
-  $("failPhoto").src = dataUrl;
+  $("failPhoto").src = canvas.toDataURL("image/jpeg", 0.7);
   $("failNote").value = "";
   $("failOverlay").classList.remove("hidden");
   scanningPaused = true;
 });
 $("failCancel").addEventListener("click", ()=>{
   $("failOverlay").classList.add("hidden"); scanningPaused = false;
+  if (gunMode) $("gunInput").focus();
 });
 $("failConfirm").addEventListener("click", ()=>{
-  const photo = $("failPhoto").src.split(",")[1];   // 純 base64
+  const photo = $("failPhoto").src.split(",")[1];
   addRecord("（無法讀取的條碼）", "失敗", $("failNote").value.trim(), photo);
-  beep(200,300); vib([120,80,120]);
-  flash("bad","已記錄掃描失敗（含照片）");
+  beep(200,300); vib([120,80,120]); say("已記錄失敗");
+  flash("bad","已記錄掃描失敗（含照片）<br>Failure logged with photo");
   lastActivity = Date.now();
   $("failOverlay").classList.add("hidden"); scanningPaused = false;
+  if (gunMode) $("gunInput").focus();
 });
 
-/* ════════ 結案寄出 ════════ */
+/* ════════ 結案 ════════ */
+function missingList(){
+  if (!expected) return [];
+  const out = [];
+  Object.keys(expected).forEach(code=>{
+    const remain = expected[code] - (matched[code]||0);
+    if (remain > 0) out.push({ code, qty: remain });
+  });
+  return out;
+}
+
 $("btnFinish").addEventListener("click", ()=>{
-  if (!records.length){ alert("尚未有任何掃描紀錄"); return; }
-  const ok  = records.filter(r=>r.result==="成功").length;
-  const bad = records.filter(r=>r.result==="失敗").length;
-  const dup = records.filter(r=>r.result==="重複").length;
+  if (!records.length){ alert("尚未有任何掃描紀錄 No scans yet"); return; }
+  const c = counts();
+  const total = expected ? listTotal : session.qty;
+
+  let plain;
+  if (c.ok === total && !c.mis) plain = "數量正確，全部掃描完成。All cartons scanned. ✓";
+  else if (c.ok < total) plain = "還差 " + (total - c.ok) + " 箱未掃到。" + (total - c.ok) + " carton(s) missing.";
+  else plain = "成功筆數（"+c.ok+"）超過預計（"+total+"），請查明。More scans than expected.";
   $("finishSummary").innerHTML =
-    "成功 <b>"+ok+"</b> 筆、失敗 <b>"+bad+"</b> 筆、重複 <b>"+dup+"</b> 筆；預計箱數 <b>"+session.qty+"</b>。";
+    "成功 <b>"+c.ok+"</b>／重複 <b>"+c.dup+"</b>／不符 <b>"+c.mis+"</b>／失敗 <b>"+c.bad+"</b>；預計 <b>"+total+"</b> 箱。<br><b>"+plain+"</b>";
+
+  const miss = missingList();
+  if (miss.length){
+    $("missTitle").textContent = "漏掃箱號 Missing codes（" + miss.length + " 項）：";
+    $("missList").innerHTML = miss.map(m=>esc(m.code) + (m.qty>1?"　×"+m.qty:"")).join("<br>");
+    $("missWrap").classList.remove("hidden");
+  } else $("missWrap").classList.add("hidden");
+
   const warn = $("finishWarn"); const msgs = [];
-  if (ok !== session.qty) msgs.push("成功筆數（"+ok+"）與預計箱數（"+session.qty+"）不一致。");
+  if (c.mis) msgs.push("有 "+c.mis+" 筆「不符」：掃到的條碼不在清單內，可能貼錯箱。");
   const notSent = records.filter(r=>r.upload==="error"||r.upload==="pending").length;
   if (!DEMO && notSent) msgs.push("仍有 "+notSent+" 筆未完成上傳，寄出前會再嘗試。");
-  if (DEMO) msgs.push("示範模式：不會實際寄信，僅示範結案流程與指紋計算。");
+  if (DEMO) msgs.push("示範模式：不會實際寄信。Demo mode: no email will be sent.");
   if (msgs.length){ warn.innerHTML = msgs.join("<br>"); warn.classList.remove("hidden"); }
   else warn.classList.add("hidden");
+
   $("finishOverlay").classList.remove("hidden");
   scanningPaused = true;
 });
 $("finishCancel").addEventListener("click", ()=>{
   $("finishOverlay").classList.add("hidden"); scanningPaused = false;
+  if (gunMode) $("gunInput").focus();
 });
 $("finishConfirm").addEventListener("click", async ()=>{
   $("finishConfirm").disabled = true;
-  $("finishConfirm").textContent = "寄出中…";
+  $("finishConfirm").textContent = "寄出中… Sending…";
   try{
-    // 補傳尚未成功的紀錄
     if (!DEMO){
       const retry = records.filter(r=>r.upload!=="sent");
       for (const r of retry){ await uploadScan(r); }
       const still = records.filter(r=>r.upload!=="sent").length;
-      if (still) throw new Error("有 "+still+" 筆紀錄無法上傳，請確認網路後再結案。");
+      if (still) throw new Error("有 "+still+" 筆紀錄無法上傳，請確認網路後再結案。Check network and retry.");
     }
     const endAt = fmt(new Date());
     let hash = "", serverMsg = "";
     if (DEMO){
       hash = await localHash(endAt);
-      serverMsg = "示範模式（未寄信）";
+      serverMsg = "示範模式（未寄信）Demo mode";
     } else {
-      const out = await apiPost({ action: "finalize", session, endAt });
+      const out = await apiPost({ action: "finalize", session, endAt, counts: counts(), missing: missingList(), listTotal });
       if (!out || !out.ok) throw new Error((out && out.error) || "後端結案失敗");
       hash = out.hash; serverMsg = out.message || "";
     }
     showDone(endAt, hash, serverMsg);
   }catch(err){
-    alert("結案失敗：" + err.message);
+    alert("結案失敗 Failed：" + err.message);
     $("finishConfirm").disabled = false;
-    $("finishConfirm").textContent = "確認寄出";
+    $("finishConfirm").textContent = "確認寄出 Send";
     return;
   }
   $("finishOverlay").classList.add("hidden");
@@ -638,10 +800,9 @@ async function localHash(endAt){
 
 async function showDone(endAt, hash, serverMsg){
   if (scanner){ try{ await scanner.stop(); }catch(e){} scanner = null; }
-  const ok  = records.filter(r=>r.result==="成功").length;
-  const bad = records.filter(r=>r.result==="失敗").length;
-  const dup = records.filter(r=>r.result==="重複").length;
-  $("doneTitle").textContent = DEMO ? "示範結案完成" : "紀錄已寄出";
+  const c = counts();
+  const miss = missingList();
+  $("doneTitle").textContent = DEMO ? "示範結案完成 Demo Done" : "紀錄已寄出 Report Sent";
   $("doneSub").textContent = serverMsg || "報告已寄至指定信箱";
   $("doneSummary").innerHTML =
     '<h2>場次摘要 Session Summary</h2>'+
@@ -650,9 +811,10 @@ async function showDone(endAt, hash, serverMsg){
     (session.po?kv("PO#",session.po):"") +
     (session.gt?kv("GT#",session.gt):"") +
     kv("掃描人員 Operator", session.operator) +
-    kv("開始時間 Start", session.startAt) + kv("結案時間 End", endAt) +
-    kv("成功／失敗／重複 OK/Fail/Dup", ok+"／"+bad+"／"+dup) +
-    kv("預計箱數 Expected", session.qty) +
+    kv("開始 Start", session.startAt) + kv("結案 End", endAt) +
+    kv("成功／重複／不符／失敗", c.ok+"／"+c.dup+"／"+c.mis+"／"+c.bad) +
+    kv("預計箱數 Expected", expected ? listTotal : session.qty) +
+    (miss.length?kv("漏掃 Missing", miss.length + " 項"):"") +
     (session.note?kv("備註 Remarks",session.note):"");
   $("doneHash").textContent = hash;
   $("viewScan").classList.add("hidden");
@@ -660,20 +822,18 @@ async function showDone(endAt, hash, serverMsg){
 }
 function kv(k,v){ return '<div class="kv"><span>'+k+'</span><b>'+esc(v)+'</b></div>'; }
 
-$("btnNew").addEventListener("click", ()=>{ location.reload(); });
+$("btnNew").addEventListener("click", ()=>{ session=null; records=[]; location.reload(); });
 
-/* 取消場次：退回填寫畫面 */
 $("btnAbort").addEventListener("click", ()=>{
   const sent = records.filter(r=>r.upload==="sent").length;
   const msg = records.length
-    ? "確定取消此場次？\n已上傳的 " + sent + " 筆紀錄會保留在試算表備查，但此場次不會結案、不會寄出報告。"
-    : "確定取消此場次，回到填寫畫面？";
+    ? "確定取消此場次？已上傳的 " + sent + " 筆紀錄會保留在試算表備查，但不會結案、不會寄出報告。\nCancel this session?"
+    : "確定取消此場次，回到填寫畫面？Cancel and go back?";
   if (!confirm(msg)) return;
   session = null; records = [];
   location.reload();
 });
 
-/* 離開頁面警告 */
 window.addEventListener("beforeunload", (e)=>{
   if (session && !$("viewDone").classList.contains("hidden")) return;
   if (session && records.length){ e.preventDefault(); e.returnValue = ""; }
