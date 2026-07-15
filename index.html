@@ -98,10 +98,10 @@
 
   /* 簽名元素：掃描燈條 */
   .flash{
-    height:52px;border-radius:10px;background:var(--panel);border:1px solid var(--line);
+    min-height:56px;border-radius:10px;background:var(--panel);border:1px solid var(--line);
     display:flex;align-items:center;justify-content:center;gap:10px;
-    font-family:var(--mono);font-size:15px;letter-spacing:.03em;color:var(--sub);
-    transition:background .12s;overflow:hidden;white-space:nowrap;padding:0 12px;
+    font-family:var(--mono);font-size:15px;letter-spacing:.02em;color:var(--sub);
+    transition:background .12s;text-align:center;line-height:1.4;padding:8px 12px;
   }
   .flash.f-ok{background:var(--ok);color:#03210F;border-color:var(--ok)}
   .flash.f-dup{background:var(--dup);color:#2A1600;border-color:var(--dup)}
@@ -335,12 +335,12 @@ const vib = p => { try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} }
 
 /* ── 燈條 ── */
 let flashTimer = null;
-function flash(kind, text){
+function flash(kind, html){
   const f = $("flash");
   f.className = "flash " + (kind==="ok"?"f-ok":kind==="dup"?"f-dup":"f-bad");
-  f.textContent = text;
+  f.innerHTML = html;
   clearTimeout(flashTimer);
-  flashTimer = setTimeout(()=>{ f.className="flash"; f.textContent="等待掃描 Waiting…"; }, 1600);
+  flashTimer = setTimeout(()=>{ f.className="flash"; f.innerHTML="等待掃描 Waiting…"; }, 1600);
 }
 
 /* ════════ 畫面一 → 開始掃描 ════════ */
@@ -403,7 +403,7 @@ async function startCamera(){
       { facingMode: "environment" },
       {
         fps: 12,
-        qrbox: (w,h)=>{ const s = Math.floor(Math.min(w,h)*0.9); return { width: s, height: s }; },  // 大正方形掃描框：橫、直、方形條碼皆適用
+        /* 不設 qrbox：整個相機畫面都是掃描區，條碼橫放、直放、方形 QR 皆可，不用對準框 */
         videoConstraints: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }  // 要求較高解析度，小條碼較易讀
       },
       onDecode, ()=>{}
@@ -450,7 +450,7 @@ setInterval(()=>{
   const f = $("flash");
   if (Date.now() - lastActivity > 12000 && f.className === "flash"){
     f.className = "flash f-info";
-    f.textContent = "掃不到？按「標記掃描失敗」Can't scan? Mark as Failed";
+    f.innerHTML = "掃不到？按「標記掃描失敗」<br>Can&#39;t scan? Tap &quot;Mark as Failed&quot;";
   }
 }, 3000);
 
@@ -465,11 +465,11 @@ function onDecode(text){
   if (isDup){
     addRecord(text, "重複", "");
     beep(320,180); setTimeout(()=>beep(320,180),220); vib([80,60,80]);
-    flash("dup","重複 DUP ▸ " + text.slice(0,24));
+    flash("dup","重複 DUP ▸ " + esc(text.slice(0,24)));
   } else {
     addRecord(text, "成功", "");
     beep(1180,120); vib(60);
-    flash("ok","成功 OK ▸ " + text.slice(0,24));
+    flash("ok","成功 OK ▸ " + esc(text.slice(0,24)));
   }
 }
 
