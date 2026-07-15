@@ -69,8 +69,32 @@
   .sess span{color:var(--sub)} .sess b{font-weight:600}
   .sess .sid{font-family:var(--mono);color:var(--amber);width:100%;font-size:12px;letter-spacing:.04em}
 
-  #reader{border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#000}
-  #reader video{border-radius:10px}
+  #reader{border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#000;
+    max-height:42vh;display:flex;align-items:center;justify-content:center}
+  #reader video{border-radius:10px;width:100% !important}
+
+  /* 相機控制（縮放／手電筒，裝置支援才顯示） */
+  .camctrl{display:flex;gap:8px;justify-content:center;margin-top:8px}
+  .camctrl button{
+    background:var(--panel);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;font-size:14px;padding:8px 14px;min-width:64px;cursor:pointer;
+  }
+  .camctrl button:active{background:var(--panel2)}
+  .camctrl button.on{border-color:var(--amber);color:var(--amber)}
+
+  /* 固定在畫面底部的操作列：不用捲動就能按 */
+  .actionbar{
+    position:fixed;left:50%;transform:translateX(-50%);bottom:0;z-index:30;
+    width:100%;max-width:520px;padding:10px 16px calc(12px + env(safe-area-inset-bottom));
+    background:linear-gradient(to top, rgba(22,24,28,.97) 62%, transparent);
+  }
+  #viewScan{padding-bottom:118px}
+
+  .abort{
+    background:transparent;border:1px solid var(--line);color:var(--sub);
+    border-radius:7px;font-size:12px;padding:5px 10px;cursor:pointer;flex-shrink:0;
+  }
+  .flash.f-info{background:var(--panel);color:var(--info);border-color:var(--info)}
 
   /* 簽名元素：掃描燈條 */
   .flash{
@@ -182,9 +206,17 @@
 
     <!-- ═══ 畫面二：掃描中 ═══ -->
     <section id="viewScan" class="hidden">
-      <div class="sess" id="sessInfo"></div>
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <div class="sess" id="sessInfo" style="flex:1"></div>
+        <button class="abort" id="btnAbort">✕ 取消場次</button>
+      </div>
       <div style="height:10px"></div>
       <div id="reader"></div>
+      <div class="camctrl hidden" id="camCtrl">
+        <button id="zoomOut">縮小 −</button>
+        <button id="zoomIn">放大 ＋</button>
+        <button id="torchBtn" class="hidden">手電筒</button>
+      </div>
       <div style="height:10px"></div>
       <div class="flash" id="flash">等待掃描…</div>
       <div style="height:10px"></div>
@@ -196,13 +228,14 @@
       </div>
       <div style="height:8px"></div>
       <div class="progress" id="prog"><i></i></div>
-      <div style="height:12px"></div>
-      <div class="btnrow">
-        <button class="btn btn-bad" id="btnFail">標記掃描失敗</button>
-        <button class="btn btn-ok" id="btnFinish">完成並寄出</button>
-      </div>
       <div style="height:14px"></div>
       <div class="list" id="recList"></div>
+      <div class="actionbar">
+        <div class="btnrow">
+          <button class="btn btn-bad" id="btnFail">標記掃描失敗</button>
+          <button class="btn btn-ok" id="btnFinish">完成並寄出</button>
+        </div>
+      </div>
     </section>
 
     <!-- ═══ 畫面三：結案完成 ═══ -->
@@ -344,6 +377,9 @@ $("btnStart").addEventListener("click", async ()=>{
 function esc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
 /* ════════ 相機與解碼 ════════ */
+let lastActivity = 0;
+let zoomState = null, torchOn = false;
+
 async function startCamera(){
   const formats = [
     Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.CODE_128,
@@ -352,24 +388,73 @@ async function startCamera(){
     Html5QrcodeSupportedFormats.UPC_E,    Html5QrcodeSupportedFormats.ITF,
     Html5QrcodeSupportedFormats.DATA_MATRIX
   ];
-  scanner = new Html5Qrcode("reader", { formatsToSupport: formats });
+  scanner = new Html5Qrcode("reader", {
+    formatsToSupport: formats,
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true },  // 有原生解碼器的手機解碼更快更準
+    verbose: false
+  });
   try{
     await scanner.start(
       { facingMode: "environment" },
-      { fps: 10, qrbox: (w,h)=>({ width: Math.floor(w*0.85), height: Math.floor(h*0.55) }) },
+      {
+        fps: 12,
+        qrbox: (w,h)=>({ width: Math.floor(w*0.85), height: Math.floor(h*0.62) }),
+        videoConstraints: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }  // 要求較高解析度，小條碼較易讀
+      },
       onDecode, ()=>{}
     );
+    lastActivity = Date.now();
+    setupCamCtrls();
   }catch(err){
     flash("bad","無法啟動相機");
     alert("無法啟動相機：" + err + "\n\n請確認已允許相機權限，且此頁面是以 https 開啟。");
   }
 }
 
+/* 縮放與手電筒（僅在裝置支援時顯示） */
+async function setupCamCtrls(){
+  try{
+    const caps = scanner.getRunningTrackCapabilities();
+    let hasAny = false;
+    if (caps && caps.zoom){
+      zoomState = { min: caps.zoom.min || 1, max: caps.zoom.max || 4,
+                    step: caps.zoom.step || 0.5, val: caps.zoom.min || 1 };
+      hasAny = true;
+    }
+    if (caps && caps.torch){ $("torchBtn").classList.remove("hidden"); hasAny = true; }
+    if (hasAny) $("camCtrl").classList.remove("hidden");
+    if (!zoomState){ $("zoomIn").style.display = "none"; $("zoomOut").style.display = "none"; }
+  }catch(e){}
+}
+async function applyZoom(dir){
+  if (!zoomState) return;
+  zoomState.val = Math.min(zoomState.max, Math.max(zoomState.min, zoomState.val + dir * zoomState.step));
+  try{ await scanner.applyVideoConstraints({ advanced: [{ zoom: zoomState.val }] }); }catch(e){}
+}
+$("zoomIn").addEventListener("click", ()=>applyZoom(1));
+$("zoomOut").addEventListener("click", ()=>applyZoom(-1));
+$("torchBtn").addEventListener("click", async ()=>{
+  torchOn = !torchOn;
+  try{ await scanner.applyVideoConstraints({ advanced: [{ torch: torchOn }] }); }catch(e){ torchOn = false; }
+  $("torchBtn").classList.toggle("on", torchOn);
+});
+
+/* 超過 12 秒掃不到 → 提示可標記失敗 */
+setInterval(()=>{
+  if (!scanner || scanningPaused) return;
+  const f = $("flash");
+  if (Date.now() - lastActivity > 12000 && f.className === "flash"){
+    f.className = "flash f-info";
+    f.textContent = "掃不到？可按「標記掃描失敗」拍照存證";
+  }
+}, 3000);
+
 function onDecode(text){
   if (scanningPaused) return;
   const now = Date.now();
   if (text === lastCode && now - lastCodeAt < 3000) return;  // 3 秒冷卻，避免同一箱連續觸發
   lastCode = text; lastCodeAt = now;
+  lastActivity = now;
 
   const isDup = records.some(r => r.code === text && r.result !== "失敗");
   if (isDup){
@@ -483,6 +568,7 @@ $("failConfirm").addEventListener("click", ()=>{
   addRecord("（無法讀取的條碼）", "失敗", $("failNote").value.trim(), photo);
   beep(200,300); vib([120,80,120]);
   flash("bad","已記錄掃描失敗（含照片）");
+  lastActivity = Date.now();
   $("failOverlay").classList.add("hidden"); scanningPaused = false;
 });
 
@@ -568,6 +654,17 @@ async function showDone(endAt, hash, serverMsg){
 function kv(k,v){ return '<div class="kv"><span>'+k+'</span><b>'+esc(v)+'</b></div>'; }
 
 $("btnNew").addEventListener("click", ()=>{ location.reload(); });
+
+/* 取消場次：退回填寫畫面 */
+$("btnAbort").addEventListener("click", ()=>{
+  const sent = records.filter(r=>r.upload==="sent").length;
+  const msg = records.length
+    ? "確定取消此場次？\n已上傳的 " + sent + " 筆紀錄會保留在試算表備查，但此場次不會結案、不會寄出報告。"
+    : "確定取消此場次，回到填寫畫面？";
+  if (!confirm(msg)) return;
+  session = null; records = [];
+  location.reload();
+});
 
 /* 離開頁面警告 */
 window.addEventListener("beforeunload", (e)=>{
